@@ -1,82 +1,98 @@
 /* global Phaser */
 
-const TILE = 32;
-const COLS = 18;
-const ROWS = 12;
-const MAP_X = 18;
-const MAP_Y = 68;
-const MAP_WIDTH = COLS * TILE;
-const MAP_HEIGHT = ROWS * TILE;
-const PANEL_X = 612;
+const GAME_WIDTH = 1280;
+const GAME_HEIGHT = 720;
+const FLOORS = 4;
+const ROOMS_PER_FLOOR = 6;
+const ROOM_W = 56;
+const ROOM_H = 34;
+const ROOM_GAP_X = 3;
+const ROOM_GAP_Y = 5;
+const BUILDING_W = 420;
+const BUILDING_H = 220;
+const PANEL_X = 908;
+const PANEL_W = 354;
 
-const BUILDINGS = {
-  repair: {
-    label: '住棟改修', short: '改修', cost: 120, texture: 'home', kind: 'home',
-    income: 18, upkeep: 3, unlock: 0, description: '古い住棟を再生。新しい住民が入居します。',
-  },
-  shop: {
-    label: '団地デリカ', short: '惣菜', cost: 95, texture: 'shop', kind: 'food',
-    income: 5, upkeep: 2, unlock: 0, description: '空腹を満たし、店の経験値も増えます。',
-  },
-  cowork: {
-    label: 'しごと部屋', short: '仕事', cost: 150, texture: 'cowork', kind: 'work',
-    income: 7, upkeep: 4, unlock: 0, description: '仕事力とアイデアが育ち、起業につながります。',
-  },
-  park: {
-    label: 'ちびっこ広場', short: '公園', cost: 70, texture: 'park', kind: 'fun',
-    income: 1, upkeep: 1, unlock: 0, description: '住民の気分を回復。団地の評判も上がります。',
-  },
-  clinic: {
-    label: 'まちの診療所', short: '診療', cost: 210, texture: 'clinic', kind: 'health',
-    income: 10, upkeep: 6, unlock: 22, description: '評判22で解放。住民全体の満足度を支えます。',
-  },
-  nursery: {
-    label: '団地こども園', short: '保育', cost: 230, texture: 'nursery', kind: 'family',
-    income: 9, upkeep: 5, unlock: 38, description: '評判38で解放。子育て世帯を呼び込みます。',
-  },
-};
-
-const RESIDENT_TEMPLATES = [
-  { name: '山田ヨシオ', job: '元電気工', trait: '世話好き', color: 0x4f8ac9, skill: 18, idea: 7 },
-  { name: '本田ミライ', job: '動画編集見習い', trait: '飽きっぽい', color: 0xe66c5c, skill: 8, idea: 16 },
-  { name: '大野マサコ', job: '惣菜名人', trait: '話が長い', color: 0xf0b84d, skill: 16, idea: 10 },
-  { name: '西村レン', job: 'プログラマー', trait: '夜型', color: 0x7c65b8, skill: 12, idea: 18 },
-  { name: '佐々木ハル', job: '子育て会社員', trait: '行動派', color: 0x4aa36b, skill: 13, idea: 9 },
-  { name: '猫田タマオ', job: '商店アルバイト', trait: '猫に好かれる', color: 0xd97b42, skill: 9, idea: 12 },
-  { name: '森アカリ', job: '保育士', trait: 'お祭り好き', color: 0x4aa0a0, skill: 14, idea: 11 },
-  { name: '神谷ソウタ', job: '配送員', trait: '方向音痴', color: 0x9b6c4f, skill: 11, idea: 13 },
+const BUILDING_LAYOUTS = [
+  { id: 'A', name: 'A棟 ひまわり', x: 18, y: 76, occupied: 14, accent: 0xd76b55 },
+  { id: 'B', name: 'B棟 あおぞら', x: 456, y: 76, occupied: 11, accent: 0x4d83a8 },
+  { id: 'C', name: 'C棟 けやき', x: 18, y: 314, occupied: 9, accent: 0x5f9461 },
+  { id: 'D', name: 'D棟 ゆうやけ', x: 456, y: 314, occupied: 8, accent: 0xc7834d },
 ];
 
-const COMBOS = [
-  { key: 'life', needs: ['home', 'shop', 'park'], name: 'ほのぼの生活街区', reward: 140, rep: 10 },
-  { key: 'startup', needs: ['home', 'shop', 'cowork'], name: '団地ベンチャー横丁', reward: 190, rep: 14 },
-  { key: 'wellness', needs: ['home', 'park', 'clinic'], name: '健康長寿街区', reward: 220, rep: 16 },
-  { key: 'family', needs: ['home', 'park', 'nursery'], name: '子育て応援街区', reward: 240, rep: 18 },
+const ROOM_TYPES = {
+  vacant: { label: '空き室', color: 0x46515c, text: '#d9e0e3' },
+  occupied: { label: '住居', color: 0xf1d49b, text: '#3d3b35' },
+  work: { label: '仕事部屋', color: 0xcbd2f2, text: '#313b68' },
+  nursery: { label: '保育室', color: 0xf4c8c4, text: '#6e3535' },
+  deli: { label: '惣菜工房', color: 0xf2c66f, text: '#62431e' },
+  clinic: { label: '診療室', color: 0xcce8d6, text: '#285d42' },
+  common: { label: '交流室', color: 0xd5e2b9, text: '#3f5f2c' },
+  startup: { label: '団地ベンチャー', color: 0x9ed8d4, text: '#174d50' },
+};
+
+const TOOLS = {
+  inspect: { label: '見る', cost: 0, type: null, description: '部屋や住民の状態を確認します。' },
+  home: { label: '住居改修', cost: 55, type: 'occupied', description: '空き室を住居へ改修し、入居希望者を迎えます。' },
+  work: { label: '仕事部屋', cost: 90, type: 'work', description: '住民の仕事力とアイデアを育てます。' },
+  nursery: { label: '保育室', cost: 110, type: 'nursery', description: '子育て世帯の満足度と入居人気を上げます。' },
+  deli: { label: '惣菜工房', cost: 80, type: 'deli', description: '食生活を支え、棟内消費を生みます。' },
+  clinic: { label: '診療室', cost: 135, type: 'clinic', unlock: 18, description: '評判18で解放。高齢世帯の安心を支えます。' },
+  common: { label: '交流室', cost: 60, type: 'common', description: '孤立を防ぎ、住民同士の交流を増やします。' },
+  clear: { label: '空室に戻す', cost: 20, type: 'vacant', description: '施設を撤去して空き室へ戻します。' },
+};
+
+const NEED_LABELS = {
+  work: '仕事',
+  family: '子育て',
+  food: '食事',
+  health: '健康',
+  community: '交流',
+};
+
+const NEED_FACILITIES = {
+  work: ['work', 'startup'],
+  family: ['nursery', 'common'],
+  food: ['deli'],
+  health: ['clinic', 'common'],
+  community: ['common', 'deli'],
+};
+
+const SURNAMES = ['山田', '佐藤', '鈴木', '高橋', '田中', '伊藤', '渡辺', '中村', '小林', '加藤', '吉田', '山本', '松本', '井上', '木村', '林', '清水', '森', '阿部', '池田'];
+const GIVEN_NAMES = ['ヨシオ', 'ミライ', 'マサコ', 'レン', 'ハル', 'タマオ', 'アカリ', 'ソウタ', 'ナオ', 'ユキ', 'ケンジ', 'ミホ', 'ユウ', 'サクラ', 'トオル', 'ナナ', 'リク', 'フミ', 'カイ', 'ヒナ'];
+const JOBS = ['元電気工', '動画編集者', '会社員', '保育士', '配送員', '料理人', 'プログラマー', '看護師', '清掃スタッフ', '大学生', '個人商店主', '介護職', 'デザイナー', '年金生活', '在宅勤務'];
+const TRAITS = ['世話好き', '夜型', '話が長い', '行動派', 'お祭り好き', '少し人見知り', '新しい物好き', '節約上手', '猫に好かれる', '朝が早い'];
+const HOUSEHOLDS = [
+  { label: '単身世帯', size: 1 },
+  { label: 'シニア夫婦', size: 2 },
+  { label: '子育て世帯', size: 3 },
+  { label: '共働き世帯', size: 2 },
+  { label: 'クリエイター世帯', size: 1 },
+  { label: '三世代世帯', size: 4 },
+];
+
+const COMBO_DEFS = [
+  { key: 'work-nursery', name: '子連れワークフロア', needs: ['work', 'nursery'], reward: 120, reputation: 6 },
+  { key: 'deli-common', name: 'お茶の間横丁', needs: ['deli', 'common'], reward: 100, reputation: 5 },
+  { key: 'clinic-common', name: '見守りステーション', needs: ['clinic', 'common'], reward: 150, reputation: 7 },
+  { key: 'work-deli', name: '夜更かし起業横丁', needs: ['work', 'deli'], reward: 130, reputation: 6 },
 ];
 
 const CHOICE_EVENTS = [
   {
-    title: '団地祭りをどうする？',
-    body: '自治会長が「今年こそ派手に」と目を輝かせています。',
-    options: [
-      { label: '本気の団地祭り  -60万円', apply: (s) => { s.money -= 60; s.reputation += 14; s.changeAllHappiness(8); s.bigNews('太鼓が朝6時から鳴りました。評判は上々です。'); } },
-      { label: '住民手作り祭り  -15万円', apply: (s) => { s.money -= 15; s.reputation += 6; s.changeAllHappiness(4); s.bigNews('焼きそばだけ異様に充実した祭りになりました。'); } },
+    title: '空き室見学会を開きます',
+    body: 'どんな人に向けて宣伝しましょう？',
+    choices: [
+      { label: '子育て世帯向け  -35万円', action: (scene) => scene.addApplicants(3, 'family', -35, 4, 'ベビーカーの下見隊が到着しました。') },
+      { label: '若手起業家向け  -25万円', action: (scene) => scene.addApplicants(2, 'work', -25, 5, '名刺だけ立派な若手が集まりました。') },
     ],
   },
   {
-    title: '空き部屋に誰を呼ぶ？',
-    body: '移住希望者が2組。どちらを優先しましょう？',
-    options: [
-      { label: '子育て世帯を呼ぶ  -25万円', apply: (s) => { s.money -= 25; s.addResident({ job: '子育て世帯', trait: '早起き', idea: 8, skill: 12 }); s.reputation += 5; s.bigNews('ベビーカー軍団が廊下を制圧しました。'); } },
-      { label: '若手起業家を呼ぶ  -35万円', apply: (s) => { s.money -= 35; s.addResident({ job: '起業準備中', trait: '夢が大きい', idea: 24, skill: 9 }); s.reputation += 4; s.bigNews('名刺だけ先に1000枚届きました。'); } },
-    ],
-  },
-  {
-    title: 'バスがまた減便！',
-    body: '駅まで20分。住民から「帰りだけでも何とかして」と要望です。',
-    options: [
-      { label: '臨時便を出す  -50万円', apply: (s) => { s.money -= 50; s.changeAllHappiness(7); s.reputation += 9; s.bigNews('最終便だけ満員。運転手は人気者です。'); } },
-      { label: '電動自転車を配る  -20万円', apply: (s) => { s.money -= 20; s.changeAllHappiness(3); s.levelRandomFacility('park', 2); s.bigNews('坂道で自治会長だけ置いていかれました。'); } },
+    title: '自治会長が屋上活用を提案',
+    body: '使われていない屋上をどうしますか？',
+    choices: [
+      { label: '屋上菜園  -30万円', action: (scene) => scene.applyEventResult(-30, 5, 4, '巨大なキュウリが団地名物になりました。') },
+      { label: '夕涼み広場  -20万円', action: (scene) => scene.applyEventResult(-20, 3, 6, '毎晩、誰かが将棋を始める屋上になりました。') },
     ],
   },
 ];
@@ -84,550 +100,615 @@ const CHOICE_EVENTS = [
 class DanchiScene extends Phaser.Scene {
   constructor() {
     super('DanchiScene');
-    this.money = 480;
+    this.money = 720;
     this.year = 1;
     this.month = 1;
-    this.reputation = 0;
-    this.selected = 'repair';
-    this.cells = [];
-    this.residents = [];
-    this.comboKeys = new Set();
-    this.startups = [];
-    this.repairedCount = 0;
-    this.visitCounts = { shop: 0, cowork: 0, park: 0, clinic: 0, nursery: 0 };
-    this.eventOpen = false;
-    this.selectedResident = null;
-    this.nextResidentIndex = 0;
+    this.reputation = 6;
     this.speed = 1;
-    this.buildButtons = new Map();
-    this.objectives = [
-      { id: 'repair', label: '古い住棟を1棟改修', reward: 100, done: false, check: () => this.repairedCount >= 1 },
-      { id: 'shop', label: '惣菜店を6回利用', reward: 90, done: false, check: () => this.visitCounts.shop >= 6 },
-      { id: 'combo', label: '団地コンボを1つ発見', reward: 150, done: false, check: () => this.comboKeys.size >= 1 },
-      { id: 'startup', label: '団地ベンチャーを誕生', reward: 240, done: false, check: () => this.startups.length >= 1 },
+    this.selectedTool = 'inspect';
+    this.selectedRoom = null;
+    this.rooms = [];
+    this.buildings = [];
+    this.residents = [];
+    this.applicants = [];
+    this.walkers = [];
+    this.toolButtons = new Map();
+    this.comboKeys = new Set();
+    this.assignmentCount = 0;
+    this.startups = 0;
+    this.residentSequence = 0;
+    this.eventOpen = false;
+    this.lastMonthlyNet = 0;
+    this.missions = [
+      { label: '空き室を3室再生', reward: 120, complete: false, check: () => this.assignmentCount >= 3 },
+      { label: '部屋コンボを1つ発見', reward: 160, complete: false, check: () => this.comboKeys.size >= 1 },
+      { label: '入居世帯を48世帯にする', reward: 220, complete: false, check: () => this.getOccupiedCount() >= 48 },
+      { label: '平均満足度を70以上にする', reward: 260, complete: false, check: () => this.getAverageHappiness() >= 70 },
+      { label: '団地ベンチャーを誕生させる', reward: 300, complete: false, check: () => this.startups >= 1 },
     ];
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#6fa85b');
-    this.createTextures();
-    this.createMap();
-    this.createInitialTown();
-    this.createResidents(4);
+    this.createBackground();
+    this.createWalkerTextures();
+    this.createBuildingsAndRooms();
+    this.seedInitialPopulation();
     this.createHud();
-    this.createSidePanel();
-    this.createBuildMenu();
-    this.createNewsTicker();
-    this.setupInput();
+    this.createRightPanel();
+    this.createToolMenu();
+    this.createWalkers();
+    this.refreshAll();
+    this.selectRoom(this.buildings[0].rooms.find((room) => room.type === 'vacant'));
 
-    this.monthTimer = this.time.addEvent({ delay: 7200, loop: true, callback: () => this.nextMonth() });
-    this.aiTimer = this.time.addEvent({ delay: 1100, loop: true, callback: () => this.planResidentActions() });
-    this.uiTimer = this.time.addEvent({ delay: 500, loop: true, callback: () => this.refreshDynamicUi() });
+    this.monthTimer = this.time.addEvent({ delay: 7600, loop: true, callback: () => this.nextMonth() });
+    this.ambientTimer = this.time.addEvent({ delay: 2800, loop: true, callback: () => this.playAmbientMoment() });
 
-    this.bigNews('空室だらけの「ひだまり団地」を、もう一度人気の街へ。');
-    this.showToast('まず古い住棟を1棟、改修してみよう。');
+    this.announce('4棟96室。住民42世帯と空き室52室から再生を始めます。');
+    this.showToast('空き室を選び、下のメニューから用途を割り当ててください。');
   }
 
-  createTextures() {
-    const make = (key, draw) => {
+  createBackground() {
+    const g = this.add.graphics().setDepth(-20);
+    g.fillStyle(0x9fcfd0).fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    g.fillStyle(0xe6cf87).fillCircle(1050, 116, 42);
+    g.fillStyle(0xdce8d2).fillEllipse(160, 72, 210, 48).fillEllipse(720, 64, 160, 38);
+    g.fillStyle(0x6fa36b).fillRect(0, 58, 908, 510);
+    g.fillStyle(0x729a68).fillTriangle(0, 132, 210, 58, 430, 132).fillTriangle(430, 132, 650, 66, 908, 132);
+    g.fillStyle(0xb7aa86).fillRect(0, 300, 908, 15).fillRect(438, 58, 15, 510);
+    g.fillStyle(0x8d8b82).fillRect(0, 546, 908, 18);
+    g.fillStyle(0xe3d69d).fillRect(0, 564, 908, 156);
+
+    for (let x = 28; x < 895; x += 72) {
+      g.fillStyle(0x477a4f).fillCircle(x, 305, 9);
+      g.fillStyle(0x6e4f32).fillRect(x - 2, 309, 4, 10);
+    }
+
+    g.fillStyle(0x3a6e4b).fillCircle(430, 300, 11).fillCircle(465, 300, 11);
+    g.fillStyle(0xf3e0b4).fillRect(423, 294, 50, 5);
+  }
+
+  createWalkerTextures() {
+    const colors = [0xd76555, 0x4e82aa, 0xe0a541, 0x6c63a7, 0x4e9a69, 0xc47a4a, 0x47969a, 0x8c644c];
+    colors.forEach((color, index) => {
       const g = this.add.graphics();
-      draw(g);
-      g.generateTexture(key, TILE, TILE);
+      g.fillStyle(0x000000, 0.18).fillEllipse(8, 22, 12, 3);
+      g.fillStyle(0xf0c39b).fillRect(5, 4, 7, 7);
+      g.fillStyle(0x3b342f).fillRect(4, 2, 9, 4);
+      g.fillStyle(color).fillRect(4, 11, 9, 8);
+      g.fillStyle(0x303843).fillRect(4, 19, 4, 4).fillRect(10, 19, 4, 4);
+      g.fillStyle(0x2d3035).fillRect(7, 6, 1, 1).fillRect(10, 6, 1, 1);
+      g.generateTexture(`walker-${index}`, 18, 25);
       g.destroy();
-    };
-
-    make('empty', (g) => {
-      g.fillStyle(0x86bd6b).fillRect(0, 0, 32, 32);
-      g.fillStyle(0x78aa60).fillRect(4, 6, 2, 2).fillRect(23, 12, 2, 2).fillRect(14, 27, 2, 2);
-      g.lineStyle(1, 0x6d9c56, 0.6).strokeRect(1, 1, 30, 30);
-    });
-
-    make('road', (g) => {
-      g.fillStyle(0x777b82).fillRect(0, 0, 32, 32);
-      g.fillStyle(0x666a70).fillRect(0, 0, 32, 3).fillRect(0, 29, 32, 3);
-      g.fillStyle(0xe7d284).fillRect(3, 15, 8, 2).fillRect(20, 15, 8, 2);
-    });
-
-    make('old', (g) => {
-      g.fillStyle(0xaaa79f).fillRect(2, 5, 28, 25);
-      g.fillStyle(0x6e6d69).fillRect(2, 5, 28, 4);
-      g.fillStyle(0x5f6871).fillRect(6, 12, 6, 5).fillRect(20, 12, 6, 5).fillRect(6, 21, 6, 5).fillRect(20, 21, 6, 5);
-      g.fillStyle(0x87564b).fillRect(14, 19, 5, 11);
-      g.fillStyle(0x4c4c49).fillRect(27, 8, 2, 17);
-      g.fillStyle(0x7d9360).fillRect(2, 28, 8, 2).fillRect(23, 27, 7, 3);
-    });
-
-    make('home', (g) => {
-      g.fillStyle(0xf0ddb1).fillRect(2, 4, 28, 26);
-      g.fillStyle(0x4e7d91).fillRect(2, 4, 28, 5);
-      g.fillStyle(0x87c6d3).fillRect(6, 12, 6, 5).fillRect(20, 12, 6, 5).fillRect(6, 21, 6, 5).fillRect(20, 21, 6, 5);
-      g.fillStyle(0xd6694e).fillRect(14, 19, 5, 11);
-      g.fillStyle(0x5d9b58).fillRect(1, 28, 30, 3);
-      g.fillStyle(0xffffff, 0.7).fillRect(7, 13, 2, 2).fillRect(21, 22, 2, 2);
-    });
-
-    make('shop', (g) => {
-      g.fillStyle(0xf4dfac).fillRect(3, 10, 26, 20);
-      g.fillStyle(0xcf5b52).fillRect(2, 6, 28, 8);
-      g.fillStyle(0xfff1c4).fillRect(5, 7, 5, 7).fillRect(15, 7, 5, 7).fillRect(25, 7, 3, 7);
-      g.fillStyle(0x6d473a).fillRect(6, 19, 8, 11);
-      g.fillStyle(0x77bccc).fillRect(18, 18, 8, 7);
-      g.fillStyle(0xe8b54d).fillRect(21, 26, 4, 3);
-    });
-
-    make('cowork', (g) => {
-      g.fillStyle(0xd9d5ef).fillRect(3, 7, 26, 23);
-      g.fillStyle(0x514e79).fillRect(3, 7, 26, 5);
-      g.fillStyle(0x75b2d0).fillRect(7, 15, 18, 8);
-      g.fillStyle(0x3f3d58).fillRect(14, 23, 4, 7);
-      g.fillStyle(0xf1d15c).fillRect(23, 3, 5, 5);
-      g.fillStyle(0xffffff).fillRect(24, 4, 2, 2);
-    });
-
-    make('park', (g) => {
-      g.fillStyle(0x84bf68).fillRect(0, 0, 32, 32);
-      g.fillStyle(0x744a2c).fillRect(8, 16, 4, 13).fillRect(22, 18, 3, 11);
-      g.fillStyle(0x3d9450).fillCircle(10, 12, 8).fillCircle(23, 14, 6);
-      g.fillStyle(0xe4c15e).fillRect(15, 24, 11, 3);
-      g.fillStyle(0xb17b49).fillRect(17, 27, 2, 3).fillRect(23, 27, 2, 3);
-    });
-
-    make('clinic', (g) => {
-      g.fillStyle(0xe9f2e9).fillRect(3, 7, 26, 23);
-      g.fillStyle(0x5b9b7a).fillRect(3, 7, 26, 5);
-      g.fillStyle(0x79b9c5).fillRect(6, 16, 7, 7).fillRect(19, 16, 7, 7);
-      g.fillStyle(0xffffff).fillRect(13, 9, 6, 2).fillRect(15, 7, 2, 6);
-      g.fillStyle(0x5b6e75).fillRect(14, 23, 4, 7);
-    });
-
-    make('nursery', (g) => {
-      g.fillStyle(0xffe1b8).fillRect(3, 9, 26, 21);
-      g.fillStyle(0xe07b65).fillTriangle(2, 10, 16, 2, 30, 10);
-      g.fillStyle(0x77b9ce).fillRect(6, 17, 7, 6).fillRect(19, 17, 7, 6);
-      g.fillStyle(0x6b8f51).fillRect(14, 22, 5, 8);
-      g.fillStyle(0xf2c94c).fillCircle(25, 7, 3);
-    });
-
-    const hairColors = [0x3d332e, 0x583b2d, 0x2e3644, 0x6f5032, 0x3d3d3d, 0x7b5b42, 0x343b48, 0x694232];
-    RESIDENT_TEMPLATES.forEach((template, index) => {
-      make(`resident-${index}`, (g) => {
-        g.fillStyle(0x000000, 0.18).fillEllipse(16, 29, 15, 4);
-        g.fillStyle(0xf0c49a).fillRect(10, 6, 12, 10);
-        g.fillStyle(hairColors[index]).fillRect(9, 4, 14, 5).fillRect(9, 7, 3, 5);
-        g.fillStyle(template.color).fillRect(8, 16, 16, 10);
-        g.fillStyle(0x343b48).fillRect(9, 26, 6, 5).fillRect(18, 26, 6, 5);
-        g.fillStyle(0x2d3035).fillRect(12, 10, 2, 2).fillRect(18, 10, 2, 2);
-        g.fillStyle(0xb65f57).fillRect(15, 14, 3, 1);
-      });
     });
   }
 
-  createMap() {
-    this.add.rectangle(MAP_X - 4, MAP_Y - 4, MAP_WIDTH + 8, MAP_HEIGHT + 8, 0x40513e)
-      .setOrigin(0).setDepth(-2);
+  createBuildingsAndRooms() {
+    BUILDING_LAYOUTS.forEach((layout) => {
+      const building = {
+        ...layout,
+        rooms: [],
+        comboNames: [],
+        monthlyIncome: 0,
+      };
+      this.drawBuildingShell(building);
+      this.createBuildingRooms(building);
+      this.buildings.push(building);
+    });
+  }
 
-    for (let y = 0; y < ROWS; y += 1) {
-      this.cells[y] = [];
-      for (let x = 0; x < COLS; x += 1) {
-        const isRoad = y === 6 || x === 8;
-        const type = isRoad ? 'road' : 'empty';
-        const sprite = this.add.image(MAP_X + x * TILE, MAP_Y + y * TILE, type).setOrigin(0);
-        sprite.setInteractive({ useHandCursor: !isRoad });
-        const cell = { x, y, type, sprite, level: 1, xp: 0, visits: 0 };
-        sprite.setData('cell', cell);
-        this.cells[y][x] = cell;
+  drawBuildingShell(building) {
+    const { x, y } = building;
+    const shell = this.add.graphics().setDepth(2);
+    shell.fillStyle(0x35404a, 0.24).fillRect(x + 8, y + 9, BUILDING_W, BUILDING_H);
+    shell.fillStyle(0xd8d2c2).fillRect(x, y + 22, BUILDING_W, BUILDING_H - 22);
+    shell.fillStyle(0xb9b4a8).fillRect(x, y + 22, BUILDING_W, 7);
+    shell.fillStyle(0x767a78).fillRect(x + 7, y + 15, BUILDING_W - 14, 8);
+    shell.fillStyle(building.accent).fillRect(x + 12, y + 28, 36, BUILDING_H - 43);
+    shell.fillStyle(0x646967).fillRect(x + 20, y + 50, 20, 135);
+    shell.fillStyle(0xa3a49d).fillRect(x + 24, y + 57, 12, 18).fillRect(x + 24, y + 91, 12, 18).fillRect(x + 24, y + 125, 12, 18).fillRect(x + 24, y + 159, 12, 18);
+    shell.fillStyle(0x8b8b83).fillRect(x + 4, y + BUILDING_H - 14, BUILDING_W - 8, 14);
+    shell.fillStyle(0x6f6758).fillRect(x + BUILDING_W - 12, y + 42, 5, 145);
+    shell.fillStyle(0xb5b09f).fillRect(x + 94, y + 7, 74, 12).fillRect(x + 255, y + 8, 52, 11);
+    shell.fillStyle(0x73766f).fillRect(x + 120, y, 18, 8).fillRect(x + 274, y + 1, 12, 8);
+    shell.lineStyle(2, 0x8b877d).lineBetween(x + 129, y, x + 150, y - 11).lineBetween(x + 280, y + 1, x + 294, y - 8);
+
+    building.titleText = this.add.text(x + 16, y + 31, building.name, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#fff7db', fontStyle: 'bold',
+    }).setDepth(5).setAngle(-90).setOrigin(1, 0);
+
+    building.statsText = this.add.text(x + 54, y + BUILDING_H - 12, '', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#384148', fontStyle: 'bold',
+    }).setDepth(6);
+
+    building.comboText = this.add.text(x + BUILDING_W - 10, y + BUILDING_H - 12, '', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#7c4d31',
+    }).setOrigin(1, 0).setDepth(6);
+  }
+
+  createBuildingRooms(building) {
+    const gridX = building.x + 54;
+    const gridY = building.y + 35;
+
+    for (let floor = FLOORS; floor >= 1; floor -= 1) {
+      const visualRow = FLOORS - floor;
+      for (let column = 0; column < ROOMS_PER_FLOOR; column += 1) {
+        const roomNumber = floor * 100 + column + 1;
+        const room = {
+          id: `${building.id}-${roomNumber}`,
+          building,
+          floor,
+          column,
+          number: roomNumber,
+          type: 'vacant',
+          resident: null,
+          level: 1,
+          experience: 0,
+          lastUsers: 0,
+          lastIncome: 0,
+          startupName: null,
+          x: gridX + column * (ROOM_W + ROOM_GAP_X) + ROOM_W / 2,
+          y: gridY + visualRow * (ROOM_H + ROOM_GAP_Y) + ROOM_H / 2,
+        };
+
+        room.container = this.add.container(room.x, room.y).setDepth(10);
+        room.container.setSize(ROOM_W, ROOM_H);
+        room.container.setInteractive(
+          new Phaser.Geom.Rectangle(-ROOM_W / 2, -ROOM_H / 2, ROOM_W, ROOM_H),
+          Phaser.Geom.Rectangle.Contains,
+        );
+        room.container.on('pointerdown', () => this.handleRoomClick(room));
+        room.container.on('pointerover', () => this.setRoomHover(room, true));
+        room.container.on('pointerout', () => this.setRoomHover(room, false));
+
+        building.rooms.push(room);
+        this.rooms.push(room);
+        this.renderRoom(room);
       }
     }
   }
 
-  createInitialTown() {
-    this.placeInitial(2, 2, 'old');
-    this.placeInitial(4, 2, 'old');
-    this.placeInitial(2, 9, 'old');
-    this.placeInitial(4, 9, 'home');
-    this.placeInitial(11, 2, 'shop');
-    this.placeInitial(12, 9, 'park');
-  }
+  seedInitialPopulation() {
+    const occupancyOrder = [0, 1, 2, 6, 7, 8, 12, 13, 18, 19, 3, 9, 14, 20, 4, 10, 15, 21, 5, 11, 16, 22, 17, 23];
 
-  placeInitial(x, y, type) {
-    const cell = this.cells[y][x];
-    cell.type = type;
-    cell.sprite.setTexture(type);
-  }
+    this.buildings.forEach((building) => {
+      if (building.id === 'A') this.assignFacilityDirect(building.rooms[5], 'common', 1);
+      if (building.id === 'B') this.assignFacilityDirect(building.rooms[11], 'deli', 1);
 
-  createResidents(count) {
-    for (let i = 0; i < count; i += 1) this.addResident();
-  }
-
-  addResident(overrides = {}) {
-    const template = RESIDENT_TEMPLATES[this.nextResidentIndex % RESIDENT_TEMPLATES.length];
-    const textureIndex = this.nextResidentIndex % RESIDENT_TEMPLATES.length;
-    this.nextResidentIndex += 1;
-
-    const road = this.cells[6][Phaser.Math.Between(1, COLS - 2)];
-    const sprite = this.add.image(
-      MAP_X + road.x * TILE + 16,
-      MAP_Y + road.y * TILE + 16,
-      `resident-${textureIndex}`,
-    ).setDepth(30).setScale(0.82).setInteractive({ useHandCursor: true });
-
-    const resident = {
-      id: this.nextResidentIndex,
-      name: overrides.name || template.name,
-      job: overrides.job || template.job,
-      trait: overrides.trait || template.trait,
-      skill: overrides.skill ?? template.skill,
-      idea: overrides.idea ?? template.idea,
-      happiness: 60,
-      needs: { food: Phaser.Math.Between(45, 80), fun: Phaser.Math.Between(45, 80), work: Phaser.Math.Between(45, 80) },
-      wallet: 20,
-      sprite,
-      target: null,
-      targetCell: null,
-      state: '散歩中',
-      speed: Phaser.Math.Between(28, 38),
-      bubble: null,
-    };
-
-    sprite.on('pointerdown', () => {
-      this.selectedResident = resident;
-      this.refreshResidentPanel();
-      this.showToast(`${resident.name}「${this.getResidentComment(resident)}」`);
+      let filled = 0;
+      occupancyOrder.forEach((roomIndex) => {
+        if (filled >= building.occupied) return;
+        const room = building.rooms[roomIndex];
+        if (room.type !== 'vacant') return;
+        const resident = this.generateResident(building.id, false);
+        room.type = 'occupied';
+        room.resident = resident;
+        resident.room = room;
+        this.residents.push(resident);
+        filled += 1;
+        this.renderRoom(room);
+      });
     });
 
-    this.residents.push(resident);
-    this.pickWanderTarget(resident);
-    this.refreshDynamicUi();
-    return resident;
+    for (let i = 0; i < 6; i += 1) this.applicants.push(this.generateResident(null, true));
+  }
+
+  generateResident(preferredBuilding = null, applicant = false, forcedNeed = null) {
+    const index = this.residentSequence;
+    this.residentSequence += 1;
+    const household = HOUSEHOLDS[index % HOUSEHOLDS.length];
+    let need = forcedNeed || ['work', 'family', 'food', 'health', 'community'][index % 5];
+    if (household.label === '子育て世帯') need = 'family';
+    if (household.label === 'シニア夫婦') need = index % 2 === 0 ? 'health' : 'community';
+
+    return {
+      id: `resident-${index}`,
+      name: `${SURNAMES[index % SURNAMES.length]} ${GIVEN_NAMES[(index * 3 + 2) % GIVEN_NAMES.length]}`,
+      household: household.label,
+      size: household.size,
+      job: JOBS[(index * 2 + 1) % JOBS.length],
+      trait: TRAITS[(index * 3) % TRAITS.length],
+      need,
+      happiness: applicant ? 58 : 48 + (index * 7) % 24,
+      idea: 28 + (index * 11) % 39,
+      preferredBuilding,
+      room: null,
+      months: 0,
+    };
+  }
+
+  assignFacilityDirect(room, type, level = 1) {
+    room.type = type;
+    room.level = level;
+    room.experience = 4;
+    this.renderRoom(room);
   }
 
   createHud() {
-    this.add.rectangle(0, 0, 1024, 58, 0x203148).setOrigin(0).setDepth(70);
+    this.add.rectangle(0, 0, GAME_WIDTH, 62, 0x203148).setOrigin(0).setDepth(100);
+    this.add.rectangle(0, 57, GAME_WIDTH, 5, 0xd4aa4e).setOrigin(0).setDepth(101);
     this.add.text(16, 10, '団地再生ものがたり', {
-      fontFamily: 'monospace', fontSize: '21px', color: '#fff0b8', fontStyle: 'bold',
-    }).setDepth(71);
+      fontFamily: 'monospace', fontSize: '22px', color: '#fff0b8', fontStyle: 'bold',
+    }).setDepth(102);
+    this.add.text(17, 36, 'ひだまり団地・再生本部', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#b9d3de',
+    }).setDepth(102);
 
-    this.statsText = this.add.text(316, 9, '', {
-      fontFamily: 'monospace', fontSize: '15px', color: '#ffffff', lineSpacing: 2,
-    }).setDepth(71);
+    this.hudText = this.add.text(310, 10, '', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ffffff', lineSpacing: 3,
+    }).setDepth(102);
 
-    const speedLabels = ['停止', '1倍', '2倍'];
-    speedLabels.forEach((label, index) => {
-      const button = this.add.rectangle(871 + index * 47, 11, 42, 34, index === 1 ? 0xf0ce67 : 0x43566f)
-        .setOrigin(0).setDepth(72).setInteractive({ useHandCursor: true });
-      button.setData('speed', index);
-      this.add.text(892 + index * 47, 28, label, {
-        fontFamily: 'monospace', fontSize: '11px', color: index === 1 ? '#273548' : '#ffffff',
-      }).setOrigin(0.5).setDepth(73);
-      button.on('pointerdown', () => this.setSpeed(index));
+    ['停止', '1倍', '2倍'].forEach((label, index) => {
+      const value = index;
+      const button = this.add.rectangle(1115 + index * 50, 12, 44, 34, index === 1 ? 0xf0cc62 : 0x42566e)
+        .setOrigin(0).setDepth(103).setInteractive({ useHandCursor: true });
+      button.setData('speedValue', value);
+      this.add.text(1137 + index * 50, 29, label, {
+        fontFamily: 'monospace', fontSize: '11px', color: index === 1 ? '#263449' : '#ffffff',
+      }).setOrigin(0.5).setDepth(104);
+      button.on('pointerdown', () => this.setSpeed(value));
     });
-
-    this.updateHud();
   }
 
-  createSidePanel() {
-    this.add.rectangle(PANEL_X, 68, 394, 384, 0xf7e9bc, 0.98)
-      .setOrigin(0).setStrokeStyle(4, 0x26374b).setDepth(60);
+  createRightPanel() {
+    this.add.rectangle(PANEL_X, 70, PANEL_W, 638, 0xf6e7bd, 0.98)
+      .setOrigin(0).setStrokeStyle(4, 0x26374b).setDepth(80);
+    this.add.rectangle(PANEL_X + 8, 78, PANEL_W - 16, 44, 0xd9bd68)
+      .setOrigin(0).setStrokeStyle(2, 0x82633a).setDepth(81);
 
-    this.add.text(PANEL_X + 14, 80, '再生ミッション', {
+    this.selectedTitle = this.add.text(PANEL_X + 20, 89, '部屋を選択', {
       fontFamily: 'monospace', fontSize: '17px', color: '#26374b', fontStyle: 'bold',
-    }).setDepth(61);
-    this.objectiveText = this.add.text(PANEL_X + 14, 106, '', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#33445a', lineSpacing: 7,
-    }).setDepth(61);
+    }).setDepth(82);
+    this.selectedDetail = this.add.text(PANEL_X + 18, 136, '', {
+      fontFamily: 'monospace', fontSize: '13px', color: '#34465a', lineSpacing: 5, wordWrap: { width: 316 },
+    }).setDepth(82);
 
-    this.add.line(PANEL_X + 12, 211, 0, 0, 366, 0, 0x8b744e).setOrigin(0).setDepth(61);
-    this.add.text(PANEL_X + 14, 222, '住民ファイル', {
-      fontFamily: 'monospace', fontSize: '17px', color: '#26374b', fontStyle: 'bold',
-    }).setDepth(61);
-    this.residentText = this.add.text(PANEL_X + 14, 249, '住民をクリックすると詳細が見られます。', {
-      fontFamily: 'monospace', fontSize: '13px', color: '#33445a', lineSpacing: 4, wordWrap: { width: 360 },
-    }).setDepth(61);
+    this.add.line(PANEL_X + 16, 306, 0, 0, PANEL_W - 32, 0, 0x9d835a).setOrigin(0).setDepth(82);
+    this.add.text(PANEL_X + 18, 318, '選択中の棟', {
+      fontFamily: 'monospace', fontSize: '15px', color: '#26374b', fontStyle: 'bold',
+    }).setDepth(82);
+    this.buildingDetail = this.add.text(PANEL_X + 18, 345, '', {
+      fontFamily: 'monospace', fontSize: '13px', color: '#34465a', lineSpacing: 5, wordWrap: { width: 316 },
+    }).setDepth(82);
 
-    this.startupButton = this.add.rectangle(PANEL_X + 14, 363, 366, 45, 0x6d7783)
-      .setOrigin(0).setStrokeStyle(3, 0x26374b).setDepth(62).setInteractive({ useHandCursor: true });
-    this.startupButtonText = this.add.text(PANEL_X + 197, 386, '起業会議：条件未達', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#ffffff', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(63);
-    this.startupButton.on('pointerdown', () => this.tryLaunchStartup());
+    this.add.line(PANEL_X + 16, 443, 0, 0, PANEL_W - 32, 0, 0x9d835a).setOrigin(0).setDepth(82);
+    this.add.text(PANEL_X + 18, 455, '再生ミッション', {
+      fontFamily: 'monospace', fontSize: '15px', color: '#26374b', fontStyle: 'bold',
+    }).setDepth(82);
+    this.missionText = this.add.text(PANEL_X + 18, 481, '', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#34465a', lineSpacing: 5, wordWrap: { width: 316 },
+    }).setDepth(82);
 
-    this.startupText = this.add.text(PANEL_X + 14, 416, '団地ベンチャー：まだありません', {
-      fontFamily: 'monospace', fontSize: '13px', color: '#6c5236', wordWrap: { width: 360 },
-    }).setDepth(61);
+    this.add.rectangle(PANEL_X + 14, 618, PANEL_W - 28, 76, 0x2d4054)
+      .setOrigin(0).setStrokeStyle(3, 0x172436).setDepth(81);
+    this.add.text(PANEL_X + 25, 628, '団地ニュース', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#f1cf69', fontStyle: 'bold',
+    }).setDepth(82);
+    this.newsText = this.add.text(PANEL_X + 25, 650, '本日もだいたい平和です。', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#ffffff', wordWrap: { width: 294 }, lineSpacing: 3,
+    }).setDepth(82);
   }
 
-  createBuildMenu() {
-    const y = 470;
-    this.add.rectangle(0, y - 8, 1024, 112, 0x23354b, 0.98).setOrigin(0).setDepth(70);
-    this.add.text(16, y + 3, '建設メニュー', {
-      fontFamily: 'monospace', fontSize: '14px', color: '#fff0b8', fontStyle: 'bold',
-    }).setDepth(71);
+  createToolMenu() {
+    this.add.rectangle(0, 564, 908, 156, 0x24364a, 0.98).setOrigin(0).setDepth(80);
+    this.add.text(16, 574, '空き室の用途を決める', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#f6d77b', fontStyle: 'bold',
+    }).setDepth(82);
+    this.toolHint = this.add.text(898, 576, '', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#d8e3ea',
+    }).setOrigin(1, 0).setDepth(82);
 
-    Object.entries(BUILDINGS).forEach(([key, data], index) => {
-      const x = 16 + index * 164;
-      const button = this.add.rectangle(x, y + 26, 151, 66, 0xf7e9bd)
-        .setOrigin(0).setStrokeStyle(3, 0x152338).setDepth(71).setInteractive({ useHandCursor: true });
-      button.setData('buildingKey', key);
-      const title = this.add.text(x + 8, y + 33, data.label, {
+    Object.entries(TOOLS).forEach(([key, tool], index) => {
+      const row = index >= 4 ? 1 : 0;
+      const column = index % 4;
+      const x = 16 + column * 220;
+      const y = 600 + row * 55;
+      const button = this.add.rectangle(x, y, 207, 45, 0xf4e4b7)
+        .setOrigin(0).setStrokeStyle(3, 0x142236).setDepth(82).setInteractive({ useHandCursor: true });
+      const label = this.add.text(x + 10, y + 7, tool.label, {
         fontFamily: 'monospace', fontSize: '13px', color: '#263449', fontStyle: 'bold',
-      }).setDepth(72);
-      const info = this.add.text(x + 8, y + 56, `${data.cost}万円`, {
-        fontFamily: 'monospace', fontSize: '12px', color: '#754c2f',
-      }).setDepth(72);
-      const lock = this.add.text(x + 143, y + 83, '', {
-        fontFamily: 'monospace', fontSize: '11px', color: '#713e36',
-      }).setOrigin(1, 1).setDepth(73);
-
-      button.on('pointerdown', () => this.selectBuilding(key));
-      this.buildButtons.set(key, { button, title, info, lock });
-    });
-    this.refreshBuildButtons();
-  }
-
-  createNewsTicker() {
-    this.newsBox = this.add.rectangle(18, 430, 576, 30, 0xfff1c7, 0.98)
-      .setOrigin(0).setStrokeStyle(2, 0x26374b).setDepth(62);
-    this.newsText = this.add.text(28, 445, '団地ニュース：本日もだいたい平和です。', {
-      fontFamily: 'monospace', fontSize: '13px', color: '#263449',
-    }).setOrigin(0, 0.5).setDepth(63);
-  }
-
-  setupInput() {
-    this.input.on('gameobjectdown', (_pointer, object) => {
-      if (this.eventOpen) return;
-      const cell = object.getData('cell');
-      if (!cell || cell.type === 'road') return;
-      this.tryBuild(cell);
+      }).setDepth(83);
+      const cost = this.add.text(x + 197, y + 29, tool.cost ? `${tool.cost}万円` : '確認', {
+        fontFamily: 'monospace', fontSize: '11px', color: '#72482f',
+      }).setOrigin(1, 1).setDepth(83);
+      button.on('pointerdown', () => this.selectTool(key));
+      this.toolButtons.set(key, { button, label, cost });
     });
   }
 
-  selectBuilding(key) {
-    const data = BUILDINGS[key];
-    if (this.reputation < data.unlock) {
-      this.showToast(`${data.label}は評判${data.unlock}で解放されます。`);
-      return;
-    }
-    this.selected = key;
-    this.refreshBuildButtons();
-    this.showToast(`${data.description}`);
+  createWalkers() {
+    this.residents.slice(0, 14).forEach((resident, index) => this.spawnWalker(resident, index));
   }
 
-  tryBuild(cell) {
-    const build = BUILDINGS[this.selected];
-    if (!build) return;
-
-    if (this.reputation < build.unlock) {
-      this.showToast(`まだ解放されていません。評判${build.unlock}が必要です。`);
-      return;
-    }
-    if (this.selected === 'repair' && cell.type !== 'old') {
-      this.showToast('改修できるのは、灰色の古い住棟だけです。');
-      return;
-    }
-    if (this.selected !== 'repair' && cell.type !== 'empty') {
-      this.showToast('空き地を選んでください。');
-      return;
-    }
-    if (this.money < build.cost) {
-      this.showToast('資金不足。自治会長の電卓が止まりました。');
-      return;
-    }
-
-    this.money -= build.cost;
-    cell.type = build.kind === 'home' ? 'home' : this.selected;
-    cell.level = 1;
-    cell.xp = 0;
-    cell.visits = 0;
-    cell.sprite.setTexture(build.texture).setScale(0.15).setAngle(-8);
-    this.tweens.add({ targets: cell.sprite, scale: 1, angle: 0, duration: 430, ease: 'Back.Out' });
-    this.makeSparkles(cell.sprite.x + 16, cell.sprite.y + 12);
-
-    if (this.selected === 'repair') {
-      this.repairedCount += 1;
-      this.addResident();
-      this.reputation += 4;
-      this.bigNews('改修完了！ 新しい住民が引っ越してきました。');
-    } else {
-      this.bigNews(`${build.label}が開業。住民が早くも様子を見ています。`);
-    }
-
-    this.checkCombos(cell.x, cell.y);
-    this.checkObjectives();
-    this.updateHud();
-    this.refreshBuildButtons();
-  }
-
-  planResidentActions() {
-    if (this.speed === 0 || this.eventOpen) return;
-    this.residents.forEach((resident) => {
-      if (resident.state.startsWith('移動') || resident.state.startsWith('利用')) return;
-      this.chooseNeedTarget(resident);
-    });
-  }
-
-  chooseNeedTarget(resident) {
-    const needs = Object.entries(resident.needs).sort((a, b) => a[1] - b[1]);
-    const need = needs[0][0];
-    const wantedType = { food: 'shop', fun: 'park', work: 'cowork' }[need];
-    const candidates = this.cells.flat().filter((cell) => cell.type === wantedType);
-
-    if (candidates.length === 0) {
-      this.showResidentBubble(resident, need === 'food' ? '腹' : need === 'fun' ? '休' : '働');
-      this.pickWanderTarget(resident);
-      return;
-    }
-
-    const target = Phaser.Utils.Array.GetRandom(candidates);
-    resident.targetCell = target;
-    resident.target = new Phaser.Math.Vector2(MAP_X + target.x * TILE + 16, MAP_Y + target.y * TILE + 18);
-    resident.state = `移動：${BUILDINGS[target.type].label}`;
-    this.showResidentBubble(resident, need === 'food' ? '飯' : need === 'fun' ? '楽' : '仕');
-  }
-
-  pickWanderTarget(resident) {
-    const roads = this.cells.flat().filter((cell) => cell.type === 'road');
-    const target = Phaser.Utils.Array.GetRandom(roads);
-    resident.targetCell = null;
-    resident.target = new Phaser.Math.Vector2(MAP_X + target.x * TILE + 16, MAP_Y + target.y * TILE + 16);
-    resident.state = '散歩中';
-  }
-
-  arriveResident(resident) {
-    if (!resident.targetCell) {
-      resident.state = 'ひと休み';
-      this.time.delayedCall(Phaser.Math.Between(500, 1300), () => this.chooseNeedTarget(resident));
-      return;
-    }
-
-    const cell = resident.targetCell;
-    resident.targetCell = null;
-    resident.state = `利用：${BUILDINGS[cell.type].label}`;
-    resident.sprite.setTint(0xfff1a8);
-    this.tweens.add({ targets: resident.sprite, y: resident.sprite.y - 5, yoyo: true, repeat: 1, duration: 140 });
-
-    this.time.delayedCall(750, () => {
-      resident.sprite.clearTint();
-      this.useFacility(resident, cell);
-      resident.state = '満足そう';
-      this.time.delayedCall(500, () => this.pickWanderTarget(resident));
-    });
-  }
-
-  useFacility(resident, cell) {
-    const type = cell.type;
-    cell.visits += 1;
-    cell.xp += 1;
-    this.visitCounts[type] = (this.visitCounts[type] || 0) + 1;
-
-    if (type === 'shop') {
-      resident.needs.food = Math.min(100, resident.needs.food + 46);
-      resident.wallet = Math.max(0, resident.wallet - 3);
-      this.money += 5 + cell.level;
-      this.floatValue(cell, `+${5 + cell.level}`);
-    } else if (type === 'park') {
-      resident.needs.fun = Math.min(100, resident.needs.fun + 45);
-      resident.happiness = Math.min(100, resident.happiness + 3);
-      if (Phaser.Math.Between(1, 5) === 1) this.reputation += 1;
-      this.floatValue(cell, 'にこっ');
-    } else if (type === 'cowork') {
-      resident.needs.work = Math.min(100, resident.needs.work + 48);
-      resident.skill += Phaser.Math.Between(1, 2);
-      resident.idea += Phaser.Math.Between(1, 3);
-      resident.wallet += 7;
-      this.money += 4 + cell.level;
-      this.floatValue(cell, 'ひらめき');
-    } else if (type === 'clinic') {
-      Object.keys(resident.needs).forEach((key) => { resident.needs[key] = Math.min(100, resident.needs[key] + 12); });
-      resident.happiness = Math.min(100, resident.happiness + 6);
-      this.money += 8 + cell.level;
-      this.floatValue(cell, '元気');
-    } else if (type === 'nursery') {
-      resident.needs.fun = Math.min(100, resident.needs.fun + 30);
-      resident.happiness = Math.min(100, resident.happiness + 5);
-      this.money += 7 + cell.level;
-      this.floatValue(cell, 'わいわい');
-    }
-
-    this.tryLevelFacility(cell);
-    this.progressStartups(type);
-    this.recalculateHappiness(resident);
-    this.checkObjectives();
-    this.refreshDynamicUi();
-  }
-
-  tryLevelFacility(cell) {
-    const thresholds = [0, 5, 13, 24];
-    const next = Math.min(3, cell.level + 1);
-    if (next > cell.level && cell.xp >= thresholds[next]) {
-      cell.level = next;
-      this.reputation += 4;
-      this.makeSparkles(cell.sprite.x + 16, cell.sprite.y + 12);
-      this.bigNews(`${BUILDINGS[cell.type].label}がレベル${cell.level}に成長！ 常連客が増えました。`);
-    }
-  }
-
-  checkCombos(x, y) {
-    const nearby = new Set();
-    for (let oy = -2; oy <= 2; oy += 1) {
-      for (let ox = -2; ox <= 2; ox += 1) {
-        const cell = this.cells[y + oy]?.[x + ox];
-        if (cell) nearby.add(cell.type);
-      }
-    }
-
-    COMBOS.forEach((combo) => {
-      if (this.comboKeys.has(combo.key)) return;
-      if (combo.needs.every((need) => nearby.has(need))) {
-        this.comboKeys.add(combo.key);
-        this.money += combo.reward;
-        this.reputation += combo.rep;
-        this.showAchievement(`コンボ発見！\n「${combo.name}」\n賞金 ${combo.reward}万円`);
-      }
-    });
-  }
-
-  canLaunchStartup() {
-    const cowork = this.cells.flat().find((cell) => cell.type === 'cowork');
-    const bestIdea = Math.max(0, ...this.residents.map((resident) => resident.idea));
-    return Boolean(cowork && cowork.visits >= 5 && bestIdea >= 22 && this.money >= 100 && this.startups.length === 0);
-  }
-
-  tryLaunchStartup() {
-    if (this.startups.length > 0) {
-      this.showToast('すでに団地ベンチャーが活動中です。');
-      return;
-    }
-    if (!this.canLaunchStartup()) {
-      this.showToast('条件：仕事部屋5回利用・アイデア22・資金100万円');
-      return;
-    }
-
-    this.money -= 100;
-    const hasShop = this.cells.flat().some((cell) => cell.type === 'shop');
-    const startup = {
-      name: hasShop ? 'まごころ団地デリバリー' : '空室ラボ',
-      level: 1,
-      xp: 0,
-      income: 24,
+  spawnWalker(resident, index = this.walkers.length) {
+    if (this.walkers.length >= 18) return;
+    const sprite = this.add.image(70 + (index * 47) % 790, 302 + (index % 2) * 245, `walker-${index % 8}`)
+      .setDepth(35).setScale(0.9).setInteractive({ useHandCursor: true });
+    const walker = {
+      resident,
+      sprite,
+      targetX: Phaser.Math.Between(45, 865),
+      laneY: sprite.y,
+      speed: Phaser.Math.Between(16, 28),
     };
-    this.startups.push(startup);
-    this.reputation += 18;
-    this.showAchievement(`団地ベンチャー誕生！\n「${startup.name}」\n空き部屋から世界を目指します。`);
-    this.checkObjectives();
-    this.refreshDynamicUi();
+    sprite.on('pointerdown', () => {
+      if (resident.room) this.selectRoom(resident.room);
+      this.showToast(`${resident.name}「${this.getResidentComment(resident)}」`);
+    });
+    this.walkers.push(walker);
   }
 
-  progressStartups(type) {
-    if (type !== 'cowork' || this.startups.length === 0) return;
-    const startup = this.startups[0];
-    startup.xp += 1;
-    if (startup.xp >= startup.level * 6 && startup.level < 3) {
-      startup.level += 1;
-      startup.income += 18;
-      startup.xp = 0;
-      this.reputation += 8;
-      this.showAchievement(`${startup.name}\nレベル${startup.level}へ成長！\n周辺団地にも進出しました。`);
+  renderRoom(room) {
+    const container = room.container;
+    container.removeAll(true);
+    const style = ROOM_TYPES[room.type];
+    const g = this.add.graphics();
+    g.fillStyle(0x222a31, 0.22).fillRect(-ROOM_W / 2 + 2, -ROOM_H / 2 + 3, ROOM_W, ROOM_H);
+    g.fillStyle(style.color).fillRect(-ROOM_W / 2, -ROOM_H / 2, ROOM_W - 2, ROOM_H - 3);
+    g.lineStyle(2, 0x6d716f).strokeRect(-ROOM_W / 2, -ROOM_H / 2, ROOM_W - 2, ROOM_H - 3);
+    g.fillStyle(0x7f8078).fillRect(-ROOM_W / 2, ROOM_H / 2 - 6, ROOM_W - 2, 4);
+    g.fillStyle(0xa6a398).fillRect(-ROOM_W / 2 + 3, ROOM_H / 2 - 3, ROOM_W - 8, 3);
+
+    if (room.type === 'vacant') this.drawVacantRoom(g);
+    if (room.type === 'occupied') this.drawOccupiedRoom(g, room);
+    if (room.type === 'work') this.drawWorkRoom(g);
+    if (room.type === 'nursery') this.drawNurseryRoom(g);
+    if (room.type === 'deli') this.drawDeliRoom(g);
+    if (room.type === 'clinic') this.drawClinicRoom(g);
+    if (room.type === 'common') this.drawCommonRoom(g);
+    if (room.type === 'startup') this.drawStartupRoom(g);
+
+    container.add(g);
+
+    const unitLabel = this.add.text(-ROOM_W / 2 + 3, -ROOM_H / 2 + 2, String(room.number), {
+      fontFamily: 'monospace', fontSize: '7px', color: style.text,
+    });
+    container.add(unitLabel);
+
+    if (room.type !== 'vacant' && room.type !== 'occupied') {
+      const typeLabel = this.add.text(ROOM_W / 2 - 4, ROOM_H / 2 - 10, ROOM_TYPES[room.type].label, {
+        fontFamily: 'monospace', fontSize: '7px', color: style.text, backgroundColor: 'rgba(255,255,255,0.58)',
+        padding: { x: 2, y: 1 },
+      }).setOrigin(1, 1);
+      container.add(typeLabel);
     }
+
+    if (room.level > 1 && room.type !== 'occupied' && room.type !== 'vacant') {
+      const level = this.add.text(ROOM_W / 2 - 4, -ROOM_H / 2 + 2, `Lv${room.level}`, {
+        fontFamily: 'monospace', fontSize: '7px', color: '#734c20', backgroundColor: '#fff0a6', padding: { x: 2, y: 1 },
+      }).setOrigin(1, 0);
+      container.add(level);
+    }
+
+    this.updateRoomSelection(room);
+  }
+
+  drawVacantRoom(g) {
+    g.fillStyle(0x27323a).fillRect(-18, -8, 13, 12).fillRect(4, -8, 13, 12);
+    g.lineStyle(2, 0x8b979d, 0.7).lineBetween(-17, -7, -6, 3).lineBetween(-6, -7, -17, 3);
+    g.lineBetween(5, -7, 16, 3).lineBetween(16, -7, 5, 3);
+    g.fillStyle(0x6e5d46).fillRect(-4, 7, 8, 7);
+    g.fillStyle(0xa89470).fillRect(-2, 9, 4, 2);
+  }
+
+  drawOccupiedRoom(g, room) {
+    const tint = room.resident ? this.needColor(room.resident.need) : 0xe6c47b;
+    g.fillStyle(0x8dc7d2).fillRect(-19, -8, 15, 12).fillRect(4, -8, 15, 12);
+    g.fillStyle(0xe8f6f8).fillRect(-17, -6, 4, 4).fillRect(6, -6, 4, 4);
+    g.fillStyle(tint).fillRect(-20, -10, 4, 14).fillRect(15, -10, 4, 14);
+    g.fillStyle(0x715344).fillRect(-4, 5, 8, 9);
+    g.fillStyle(0xf0c39b).fillCircle(room.column % 2 === 0 ? -10 : 10, 7, 3);
+    g.fillStyle(0x3d4652).fillRect(room.column % 2 === 0 ? -13 : 7, 10, 6, 4);
+    if ((room.number + room.building.id.charCodeAt(0)) % 3 === 0) {
+      g.fillStyle(0xe9ece4).fillRect(-16, 13, 8, 2);
+      g.fillStyle(0x5e86a1).fillRect(-8, 13, 7, 2);
+    }
+  }
+
+  drawWorkRoom(g) {
+    g.fillStyle(0x51617e).fillRect(-17, -8, 34, 17);
+    g.fillStyle(0x75b5d1).fillRect(-13, -5, 12, 8).fillRect(3, -5, 12, 8);
+    g.fillStyle(0xe7e7df).fillRect(-10, -3, 6, 3).fillRect(6, -3, 6, 3);
+    g.fillStyle(0x745442).fillRect(-18, 9, 36, 3);
+    g.fillStyle(0x3d4350).fillRect(-10, 12, 3, 3).fillRect(8, 12, 3, 3);
+  }
+
+  drawNurseryRoom(g) {
+    g.fillStyle(0xffe9ca).fillRect(-18, -8, 36, 18);
+    g.fillStyle(0xe56f67).fillRect(-16, 4, 8, 7);
+    g.fillStyle(0x6ca0c6).fillRect(-5, 1, 7, 10);
+    g.fillStyle(0xf0c646).fillRect(5, 5, 9, 6);
+    g.fillStyle(0x5f9b5c).fillCircle(12, -3, 4);
+    g.fillStyle(0xffffff).fillRect(-15, -6, 28, 3);
+  }
+
+  drawDeliRoom(g) {
+    g.fillStyle(0xffe7b3).fillRect(-18, -8, 36, 17);
+    g.fillStyle(0xc9584f).fillRect(-19, -10, 38, 5);
+    g.fillStyle(0xffffff).fillRect(-16, -10, 6, 5).fillRect(-4, -10, 6, 5).fillRect(8, -10, 6, 5);
+    g.fillStyle(0x765040).fillRect(-17, 7, 34, 5);
+    g.fillStyle(0x9a9b98).fillCircle(-7, 3, 5);
+    g.fillStyle(0xe5bf50).fillCircle(8, 3, 4);
+  }
+
+  drawClinicRoom(g) {
+    g.fillStyle(0xf1faf3).fillRect(-18, -8, 36, 19);
+    g.fillStyle(0x69a987).fillRect(-3, -8, 6, 14).fillRect(-8, -3, 16, 5);
+    g.fillStyle(0x80b9c6).fillRect(-17, 7, 12, 5).fillRect(6, 7, 12, 5);
+  }
+
+  drawCommonRoom(g) {
+    g.fillStyle(0xe8efcf).fillRect(-18, -8, 36, 19);
+    g.fillStyle(0x7b9e66).fillRect(-15, 3, 11, 8).fillRect(4, 3, 11, 8);
+    g.fillStyle(0xa9794c).fillRect(-5, 5, 10, 4);
+    g.fillStyle(0xe9c95b).fillCircle(0, -3, 5);
+    g.fillStyle(0x6c845b).fillRect(-1, 2, 2, 4);
+  }
+
+  drawStartupRoom(g) {
+    g.fillStyle(0x234950).fillRect(-18, -9, 36, 20);
+    g.fillStyle(0x71d0ca).fillRect(-14, -5, 28, 9);
+    g.fillStyle(0xf4e778).fillRect(-11, -2, 4, 3).fillRect(-3, -2, 4, 3).fillRect(5, -2, 4, 3);
+    g.fillStyle(0xe7f4f0).fillRect(-15, 7, 30, 4);
+    g.fillStyle(0xd96456).fillRect(11, -9, 5, 5);
+  }
+
+  needColor(need) {
+    return {
+      work: 0x6d75aa,
+      family: 0xd97872,
+      food: 0xd79a3f,
+      health: 0x5d9f79,
+      community: 0x7d9b59,
+    }[need] || 0x999999;
+  }
+
+  setRoomHover(room, active) {
+    if (room === this.selectedRoom) return;
+    room.container.setScale(active ? 1.06 : 1);
+  }
+
+  updateRoomSelection(room) {
+    const existing = room.container.getByName('selection');
+    if (existing) existing.destroy();
+    if (room !== this.selectedRoom) return;
+    const selection = this.add.rectangle(0, 0, ROOM_W + 4, ROOM_H + 4)
+      .setStrokeStyle(3, 0xffef7d).setFillStyle(0xffffff, 0).setName('selection');
+    room.container.add(selection);
+    room.container.bringToTop(selection);
+    room.container.setScale(1.07);
+  }
+
+  handleRoomClick(room) {
+    this.selectRoom(room);
+    if (this.selectedTool === 'inspect') return;
+    this.applyToolToRoom(room);
+  }
+
+  selectRoom(room) {
+    const previous = this.selectedRoom;
+    this.selectedRoom = room;
+    if (previous && previous !== room) {
+      previous.container.setScale(1);
+      this.renderRoom(previous);
+    }
+    this.renderRoom(room);
+    this.refreshRightPanel();
+  }
+
+  selectTool(key) {
+    const tool = TOOLS[key];
+    if (tool.unlock && this.reputation < tool.unlock) {
+      this.showToast(`${tool.label}は団地評判${tool.unlock}で解放されます。`);
+      return;
+    }
+    this.selectedTool = key;
+    this.refreshTools();
+    this.toolHint.setText(tool.description);
+    this.showToast(tool.description);
+  }
+
+  applyToolToRoom(room) {
+    const tool = TOOLS[this.selectedTool];
+    if (!tool) return;
+
+    if (this.selectedTool === 'clear') {
+      if (room.type === 'occupied') {
+        this.showToast('住民が暮らしている部屋は、先に転居先が必要です。');
+        return;
+      }
+      if (room.type === 'vacant') {
+        this.showToast('すでに空き室です。');
+        return;
+      }
+      if (!this.spend(tool.cost)) return;
+      room.type = 'vacant';
+      room.level = 1;
+      room.experience = 0;
+      room.startupName = null;
+      this.assignmentCount += 1;
+      this.renderRoom(room);
+      this.announce(`${room.id}を空き室へ戻しました。`);
+      this.afterRoomChange(room);
+      return;
+    }
+
+    if (room.type !== 'vacant') {
+      this.showToast('用途を割り当てられるのは空き室だけです。');
+      return;
+    }
+    if (tool.unlock && this.reputation < tool.unlock) {
+      this.showToast(`評判${tool.unlock}が必要です。`);
+      return;
+    }
+    if (!this.spend(tool.cost)) return;
+
+    if (this.selectedTool === 'home') {
+      if (this.applicants.length === 0) {
+        this.money += tool.cost;
+        this.showToast('入居希望者がいません。評判を上げるか、見学会を待ちましょう。');
+        return;
+      }
+      const resident = this.applicants.shift();
+      resident.room = room;
+      resident.preferredBuilding = room.building.id;
+      room.type = 'occupied';
+      room.resident = resident;
+      this.residents.push(resident);
+      this.spawnWalker(resident);
+      this.announce(`${room.id}に${resident.name}さん（${resident.household}）が入居しました。`);
+    } else {
+      room.type = tool.type;
+      room.level = 1;
+      room.experience = 0;
+      room.lastUsers = 0;
+      this.announce(`${room.id}を「${ROOM_TYPES[room.type].label}」へ改修しました。`);
+    }
+
+    this.assignmentCount += 1;
+    this.renderRoom(room);
+    this.makeRoomSparkles(room);
+    this.afterRoomChange(room);
+  }
+
+  spend(cost) {
+    if (this.money < cost) {
+      this.showToast('資金不足。自治会長の電卓が固まりました。');
+      return false;
+    }
+    this.money -= cost;
+    return true;
+  }
+
+  afterRoomChange(room) {
+    this.checkBuildingCombos(room.building);
+    this.checkMissions();
+    this.refreshAll();
+    this.selectRoom(room);
+  }
+
+  checkBuildingCombos(building) {
+    COMBO_DEFS.forEach((combo) => {
+      const comboKey = `${building.id}-${combo.key}`;
+      if (this.comboKeys.has(comboKey)) return;
+
+      let found = false;
+      building.rooms.forEach((room) => {
+        if (found || room.type !== combo.needs[0]) return;
+        found = building.rooms.some((other) => {
+          if (other.type !== combo.needs[1]) return false;
+          const floorDistance = Math.abs(other.floor - room.floor);
+          const columnDistance = Math.abs(other.column - room.column);
+          return floorDistance === 0 && columnDistance <= 1;
+        });
+      });
+
+      if (!found) return;
+      this.comboKeys.add(comboKey);
+      building.comboNames.push(combo.name);
+      this.money += combo.reward;
+      this.reputation += combo.reputation;
+      this.showAchievement(`${building.name}\n部屋コンボ発見！\n「${combo.name}」\n報酬 ${combo.reward}万円`);
+    });
   }
 
   nextMonth() {
@@ -636,165 +717,357 @@ class DanchiScene extends Phaser.Scene {
     if (this.month > 12) {
       this.month = 1;
       this.year += 1;
-      this.reputation += 3;
-      this.bigNews(`${this.year}年目が始まりました。視察団がなぜか猫だけ撮影しています。`);
+      this.reputation += 2;
+      this.announce(`${this.year}年目。団地視察団が屋上の布団ばかり撮影しています。`);
     }
 
-    let rent = 0;
-    let business = 0;
-    let upkeep = 0;
-    this.cells.flat().forEach((cell) => {
-      if (cell.type === 'home') rent += 20 + cell.level * 4;
-      const data = BUILDINGS[cell.type];
-      if (data) {
-        business += data.income * cell.level;
-        upkeep += data.upkeep;
-      }
+    let rentIncome = 0;
+    let facilityIncome = 0;
+    let maintenance = 0;
+
+    this.buildings.forEach((building) => {
+      const occupiedResidents = building.rooms
+        .filter((room) => room.type === 'occupied' && room.resident)
+        .map((room) => room.resident);
+      const vacancyRate = this.getBuildingVacancyRate(building);
+      const facilityCounts = this.getFacilityCounts(building);
+
+      occupiedResidents.forEach((resident) => {
+        const target = this.calculateHappinessTarget(resident, building, facilityCounts, vacancyRate);
+        resident.happiness = Phaser.Math.Clamp(Math.round(resident.happiness * 0.62 + target * 0.38), 18, 96);
+        resident.months += 1;
+        if ((facilityCounts.work || 0) + (facilityCounts.startup || 0) > 0 && resident.need === 'work') {
+          resident.idea = Math.min(99, resident.idea + Phaser.Math.Between(1, 3));
+        }
+        rentIncome += 5 + Math.round(resident.happiness / 18) + Math.min(3, resident.size);
+      });
+
+      building.rooms.forEach((room) => {
+        if (room.type === 'vacant') {
+          maintenance += 1;
+          return;
+        }
+        if (room.type === 'occupied') {
+          maintenance += 2;
+          return;
+        }
+
+        const users = this.estimateFacilityUsers(room, occupiedResidents);
+        room.lastUsers = users;
+        room.experience += Math.max(1, Math.ceil(users / 4));
+        room.lastIncome = this.calculateFacilityIncome(room, users);
+        facilityIncome += room.lastIncome;
+        maintenance += room.type === 'clinic' ? 8 : room.type === 'startup' ? 6 : 4;
+        this.tryLevelFacility(room);
+      });
+
+      building.monthlyIncome = occupiedResidents.reduce((sum, resident) => sum + 5 + Math.round(resident.happiness / 18), 0)
+        + building.rooms.reduce((sum, room) => sum + (room.lastIncome || 0), 0);
     });
-    const startupIncome = this.startups.reduce((sum, startup) => sum + startup.income, 0);
-    const net = rent + business + startupIncome - upkeep;
+
+    maintenance += this.buildings.length * 12;
+    const net = rentIncome + facilityIncome - maintenance;
+    this.lastMonthlyNet = net;
     this.money += net;
 
-    this.residents.forEach((resident) => {
-      resident.needs.food = Math.max(0, resident.needs.food - Phaser.Math.Between(12, 20));
-      resident.needs.fun = Math.max(0, resident.needs.fun - Phaser.Math.Between(10, 18));
-      resident.needs.work = Math.max(0, resident.needs.work - Phaser.Math.Between(8, 16));
-      this.recalculateHappiness(resident);
-    });
+    const average = this.getAverageHappiness();
+    if (average >= 70) this.reputation += 2;
+    if (average >= 78) this.reputation += 1;
+
+    const newApplicants = Math.max(0, Math.floor((this.reputation + average - 62) / 22));
+    for (let i = 0; i < newApplicants; i += 1) this.applicants.push(this.generateResident(null, true));
+
+    this.maybeLaunchStartup();
+    this.checkMissions();
+    this.refreshAll();
+    this.floatHud(`+${net}万円`);
+    this.announce(`月次決算：家賃${rentIncome}＋施設${facilityIncome}－維持${maintenance}＝${net}万円。入居希望者＋${newApplicants}。`);
 
     if (this.month % 3 === 0) this.time.delayedCall(500, () => this.showChoiceEvent());
-    this.bigNews(`月次決算：家賃${rent} + 事業${business} + 起業${startupIncome} - 維持${upkeep} = ${net}万円`);
-    this.floatTop(`+${net}万円`);
-    this.checkObjectives();
-    this.refreshDynamicUi();
+  }
+
+  calculateHappinessTarget(resident, building, counts, vacancyRate) {
+    let score = 45;
+    score += Math.min(8, (counts.common || 0) * 4);
+    score += Math.min(5, (counts.deli || 0) * 2);
+    score -= Math.round(vacancyRate * 10);
+
+    const needed = NEED_FACILITIES[resident.need] || [];
+    needed.forEach((type, index) => {
+      score += (counts[type] || 0) * (index === 0 ? 14 : 6);
+    });
+
+    if (building.comboNames.length > 0) score += Math.min(8, building.comboNames.length * 3);
+    if (resident.room) {
+      const nearby = building.rooms.filter((room) => {
+        if (!needed.includes(room.type)) return false;
+        return room.floor === resident.room.floor && Math.abs(room.column - resident.room.column) <= 1;
+      });
+      score += nearby.length * 5;
+    }
+    return Phaser.Math.Clamp(score, 22, 94);
+  }
+
+  estimateFacilityUsers(room, residents) {
+    const matchingNeeds = {
+      work: ['work'],
+      startup: ['work'],
+      nursery: ['family'],
+      deli: ['food', 'community'],
+      clinic: ['health'],
+      common: ['community', 'family', 'health'],
+    }[room.type] || [];
+    const matching = residents.filter((resident) => matchingNeeds.includes(resident.need)).length;
+    const universal = room.type === 'deli' || room.type === 'common' ? Math.ceil(residents.length * 0.25) : 0;
+    return Math.max(1, matching + universal + room.level - 1);
+  }
+
+  calculateFacilityIncome(room, users) {
+    const base = {
+      work: 8,
+      nursery: 3,
+      deli: 9,
+      clinic: 10,
+      common: 3,
+      startup: 24,
+    }[room.type] || 0;
+    const perUser = room.type === 'nursery' || room.type === 'common' ? 1 : 2;
+    return base * room.level + users * perUser;
+  }
+
+  tryLevelFacility(room) {
+    const threshold = room.level === 1 ? 16 : room.level === 2 ? 38 : Infinity;
+    if (room.experience < threshold) return;
+    room.level += 1;
+    room.experience = 0;
+    this.reputation += 3;
+    this.renderRoom(room);
+    this.makeRoomSparkles(room);
+    this.announce(`${room.id}の${ROOM_TYPES[room.type].label}がLv.${room.level}へ成長しました。`);
+  }
+
+  maybeLaunchStartup() {
+    this.buildings.forEach((building) => {
+      const existing = building.rooms.some((room) => room.type === 'startup');
+      if (existing) return;
+      const workRoom = building.rooms.find((room) => room.type === 'work' && room.level >= 2 && room.experience >= 10);
+      const founder = building.rooms
+        .filter((room) => room.type === 'occupied' && room.resident)
+        .map((room) => room.resident)
+        .sort((a, b) => b.idea - a.idea)[0];
+      if (!workRoom || !founder || founder.idea < 64) return;
+
+      workRoom.type = 'startup';
+      workRoom.startupName = this.getStartupName(building);
+      workRoom.level = 1;
+      workRoom.experience = 0;
+      this.startups += 1;
+      this.reputation += 12;
+      this.money += 100;
+      this.renderRoom(workRoom);
+      this.showAchievement(`${building.name}\n団地ベンチャー誕生！\n「${workRoom.startupName}」\n創業者：${founder.name}`);
+    });
+  }
+
+  getStartupName(building) {
+    const counts = this.getFacilityCounts(building);
+    if ((counts.deli || 0) > 0) return 'まごころ団地デリバリー';
+    if ((counts.nursery || 0) > 0) return 'こそだてシェアラボ';
+    if ((counts.clinic || 0) > 0) return 'みまもりテック';
+    return '空室アイデア研究所';
   }
 
   showChoiceEvent() {
     if (this.eventOpen) return;
-    const event = Phaser.Utils.Array.GetRandom(CHOICE_EVENTS);
     this.eventOpen = true;
-
+    const event = Phaser.Utils.Array.GetRandom(CHOICE_EVENTS);
     const overlay = this.add.container(0, 0).setDepth(200);
-    overlay.add(this.add.rectangle(0, 0, 1024, 582, 0x152238, 0.72).setOrigin(0));
-    overlay.add(this.add.rectangle(210, 135, 604, 280, 0xffefc7).setOrigin(0).setStrokeStyle(5, 0x26374b));
-    overlay.add(this.add.text(238, 163, '団地会議', {
-      fontFamily: 'monospace', fontSize: '17px', color: '#8b4e3f', fontStyle: 'bold',
+    overlay.add(this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x142238, 0.72).setOrigin(0));
+    overlay.add(this.add.rectangle(350, 185, 580, 300, 0xffedbd).setStrokeStyle(5, 0x26374b));
+    overlay.add(this.add.text(384, 218, '団地会議', {
+      fontFamily: 'monospace', fontSize: '15px', color: '#9a583c', fontStyle: 'bold',
     }));
-    overlay.add(this.add.text(238, 198, event.title, {
-      fontFamily: 'monospace', fontSize: '22px', color: '#26374b', fontStyle: 'bold',
+    overlay.add(this.add.text(384, 252, event.title, {
+      fontFamily: 'monospace', fontSize: '21px', color: '#26374b', fontStyle: 'bold',
     }));
-    overlay.add(this.add.text(238, 239, event.body, {
-      fontFamily: 'monospace', fontSize: '15px', color: '#3f4d5f', wordWrap: { width: 548 },
+    overlay.add(this.add.text(384, 292, event.body, {
+      fontFamily: 'monospace', fontSize: '15px', color: '#435267', wordWrap: { width: 510 },
     }));
 
-    event.options.forEach((option, index) => {
-      const y = 296 + index * 58;
-      const button = this.add.rectangle(238, y, 548, 44, 0xe4c963)
+    event.choices.forEach((choice, index) => {
+      const y = 350 + index * 58;
+      const button = this.add.rectangle(384, y, 510, 44, 0xe4c45d)
         .setOrigin(0).setStrokeStyle(3, 0x26374b).setInteractive({ useHandCursor: true });
-      const text = this.add.text(512, y + 22, option.label, {
-        fontFamily: 'monospace', fontSize: '15px', color: '#26374b', fontStyle: 'bold',
+      const text = this.add.text(639, y + 22, choice.label, {
+        fontFamily: 'monospace', fontSize: '14px', color: '#26374b', fontStyle: 'bold',
       }).setOrigin(0.5);
       overlay.add([button, text]);
       button.on('pointerdown', () => {
-        option.apply(this);
+        choice.action(this);
         overlay.destroy(true);
         this.eventOpen = false;
-        this.checkObjectives();
-        this.refreshDynamicUi();
+        this.checkMissions();
+        this.refreshAll();
       });
     });
   }
 
-  checkObjectives() {
-    this.objectives.forEach((objective) => {
-      if (objective.done || !objective.check()) return;
-      objective.done = true;
-      this.money += objective.reward;
-      this.reputation += 5;
-      this.showAchievement(`ミッション達成！\n${objective.label}\n報酬 ${objective.reward}万円`);
-    });
-    this.refreshObjectiveText();
+  addApplicants(count, need, moneyChange, reputationChange, message) {
+    this.money += moneyChange;
+    this.reputation += reputationChange;
+    for (let i = 0; i < count; i += 1) this.applicants.push(this.generateResident(null, true, need));
+    this.announce(message);
   }
 
-  refreshDynamicUi() {
+  applyEventResult(moneyChange, reputationChange, happinessChange, message) {
+    this.money += moneyChange;
+    this.reputation += reputationChange;
+    this.residents.forEach((resident) => {
+      resident.happiness = Phaser.Math.Clamp(resident.happiness + happinessChange, 0, 100);
+    });
+    this.announce(message);
+  }
+
+  checkMissions() {
+    this.missions.forEach((mission) => {
+      if (mission.complete || !mission.check()) return;
+      mission.complete = true;
+      this.money += mission.reward;
+      this.reputation += 4;
+      this.showAchievement(`ミッション達成！\n${mission.label}\n報酬 ${mission.reward}万円`);
+    });
+  }
+
+  refreshAll() {
     this.updateHud();
-    this.refreshObjectiveText();
-    this.refreshResidentPanel();
-    this.refreshStartupPanel();
-    this.refreshBuildButtons();
-  }
-
-  refreshObjectiveText() {
-    if (!this.objectiveText) return;
-    this.objectiveText.setText(this.objectives.map((objective) => {
-      const mark = objective.done ? '完了' : '・';
-      return `${mark} ${objective.label}  報酬${objective.reward}万`;
-    }).join('\n'));
-  }
-
-  refreshResidentPanel() {
-    if (!this.residentText) return;
-    const resident = this.selectedResident || this.residents[0];
-    if (!resident) return;
-    const lowest = Object.entries(resident.needs).sort((a, b) => a[1] - b[1])[0];
-    const needLabel = { food: '空腹', fun: '気分', work: '仕事' }[lowest[0]];
-    this.residentText.setText(
-      `${resident.name}　${resident.job}\n` +
-      `性格：${resident.trait}\n` +
-      `仕事力 ${resident.skill}　アイデア ${resident.idea}\n` +
-      `満足 ${resident.happiness}%　${needLabel} ${lowest[1]}%\n` +
-      `行動：${resident.state}`,
-    );
-  }
-
-  refreshStartupPanel() {
-    const ready = this.canLaunchStartup();
-    this.startupButton.setFillStyle(ready ? 0xd8b64d : 0x6d7783);
-    this.startupButtonText.setColor(ready ? '#26374b' : '#ffffff');
-    this.startupButtonText.setText(ready ? '起業会議を開く  100万円' : '起業条件を育てよう');
-
-    if (this.startups.length === 0) {
-      const coworkVisits = this.visitCounts.cowork || 0;
-      const bestIdea = Math.max(0, ...this.residents.map((resident) => resident.idea));
-      this.startupText.setText(`団地ベンチャー：まだありません\n仕事部屋 ${coworkVisits}/5回　最高アイデア ${bestIdea}/22`);
-    } else {
-      const startup = this.startups[0];
-      this.startupText.setText(`${startup.name}　Lv.${startup.level}\n月収 ${startup.income}万円　成長 ${startup.xp}/${startup.level * 6}`);
-    }
-  }
-
-  refreshBuildButtons() {
-    this.buildButtons.forEach((ui, key) => {
-      const data = BUILDINGS[key];
-      const locked = this.reputation < data.unlock;
-      const selected = this.selected === key;
-      ui.button.setFillStyle(locked ? 0x888d91 : selected ? 0xf0ce67 : 0xf7e9bd);
-      ui.title.setColor(locked ? '#4f5358' : '#263449');
-      ui.info.setText(locked ? `評判${data.unlock}で解放` : `${data.cost}万円`);
-      ui.lock.setText(selected && !locked ? '選択中' : '');
-    });
+    this.refreshBuildingStats();
+    this.refreshRightPanel();
+    this.refreshTools();
   }
 
   updateHud() {
-    if (!this.statsText) return;
-    const happiness = this.getAverageHappiness();
-    this.statsText.setText(
-      `資金 ${this.money}万円　住民 ${this.residents.length}人　満足 ${happiness}%\n` +
-      `${this.year}年目 ${this.month}月　評判 ${this.reputation}　コンボ ${this.comboKeys.size}`,
+    if (!this.hudText) return;
+    const occupied = this.getOccupiedCount();
+    const vacancy = this.getVacantCount();
+    this.hudText.setText(
+      `資金 ${this.money}万円　入居 ${occupied}/96室　空室 ${vacancy}室　満足 ${this.getAverageHappiness()}%\n` +
+      `${this.year}年目 ${this.month}月　評判 ${this.reputation}　入居希望 ${this.applicants.length}組　先月 ${this.lastMonthlyNet >= 0 ? '+' : ''}${this.lastMonthlyNet}万円`,
     );
   }
 
-  setSpeed(speed) {
-    this.speed = speed;
-    this.time.timeScale = speed === 0 ? 0.0001 : speed;
-    this.children.list.filter((child) => child.type === 'Rectangle' && child.getData('speed') !== undefined)
-      .forEach((button) => button.setFillStyle(button.getData('speed') === speed ? 0xf0ce67 : 0x43566f));
-    this.showToast(speed === 0 ? '時間を止めました。じっくり配置できます。' : `${speed}倍速で進行します。`);
+  refreshBuildingStats() {
+    this.buildings.forEach((building) => {
+      const occupied = building.rooms.filter((room) => room.type === 'occupied').length;
+      const vacant = building.rooms.filter((room) => room.type === 'vacant').length;
+      const residents = building.rooms.filter((room) => room.resident).map((room) => room.resident);
+      const happiness = residents.length
+        ? Math.round(residents.reduce((sum, resident) => sum + resident.happiness, 0) / residents.length)
+        : 0;
+      building.statsText.setText(`入居${occupied}/24　空室${vacant}　満足${happiness}%`);
+      building.comboText.setText(building.comboNames.length ? `効果：${building.comboNames.at(-1)}` : '');
+    });
   }
 
-  recalculateHappiness(resident) {
-    const average = Math.round((resident.needs.food + resident.needs.fun + resident.needs.work) / 3);
-    resident.happiness = Phaser.Math.Clamp(Math.round(resident.happiness * 0.45 + average * 0.55), 0, 100);
+  refreshRightPanel() {
+    if (!this.selectedRoom || !this.selectedTitle) return;
+    const room = this.selectedRoom;
+    this.selectedTitle.setText(`${room.building.id}棟 ${room.number}号室　${ROOM_TYPES[room.type].label}`);
+
+    if (room.type === 'vacant') {
+      this.selectedDetail.setText(
+        '現在は空き室です。\n' +
+        '窓は暗く、内装も少し傷んでいます。\n\n' +
+        '下の用途メニューを選び、もう一度この部屋をクリックすると改修できます。',
+      );
+    } else if (room.type === 'occupied' && room.resident) {
+      const resident = room.resident;
+      this.selectedDetail.setText(
+        `${resident.name}\n${resident.household}・${resident.size}人暮らし\n` +
+        `仕事：${resident.job}\n性格：${resident.trait}\n` +
+        `重視：${NEED_LABELS[resident.need]}\n満足度：${resident.happiness}%\n` +
+        `アイデア：${resident.idea}\n\n「${this.getResidentComment(resident)}」`,
+      );
+    } else {
+      const startupLine = room.type === 'startup' ? `\n会社名：${room.startupName}` : '';
+      this.selectedDetail.setText(
+        `${ROOM_TYPES[room.type].label}　Lv.${room.level}${startupLine}\n` +
+        `先月利用：${room.lastUsers}人\n先月収入：${room.lastIncome}万円\n` +
+        `成長経験：${room.experience}\n\n${this.getFacilityDescription(room.type)}`,
+      );
+    }
+
+    const building = room.building;
+    const counts = this.getFacilityCounts(building);
+    const occupied = building.rooms.filter((item) => item.type === 'occupied').length;
+    const vacant = building.rooms.filter((item) => item.type === 'vacant').length;
+    const buildingResidents = building.rooms.filter((item) => item.resident).map((item) => item.resident);
+    const needCounts = Object.keys(NEED_LABELS).map((need) => {
+      const count = buildingResidents.filter((resident) => resident.need === need).length;
+      return `${NEED_LABELS[need]}${count}`;
+    }).join('・');
+
+    this.buildingDetail.setText(
+      `${building.name}\n入居 ${occupied}/24室　空室 ${vacant}室\n` +
+      `仕事${counts.work || 0}　保育${counts.nursery || 0}　惣菜${counts.deli || 0}\n` +
+      `診療${counts.clinic || 0}　交流${counts.common || 0}　起業${counts.startup || 0}\n` +
+      `住民の要望：${needCounts}`,
+    );
+
+    this.missionText.setText(this.missions.map((mission) => (
+      `${mission.complete ? '達成' : '・'} ${mission.label}　${mission.reward}万`
+    )).join('\n'));
+  }
+
+  refreshTools() {
+    this.toolButtons.forEach((ui, key) => {
+      const tool = TOOLS[key];
+      const locked = tool.unlock && this.reputation < tool.unlock;
+      const selected = key === this.selectedTool;
+      ui.button.setFillStyle(locked ? 0x80878b : selected ? 0xf1cf63 : 0xf4e4b7);
+      ui.label.setColor(locked ? '#444b51' : '#263449');
+      ui.cost.setText(locked ? `評判${tool.unlock}` : tool.cost ? `${tool.cost}万円` : '確認');
+    });
+  }
+
+  getFacilityDescription(type) {
+    return {
+      work: '在宅勤務や小さな事業の拠点。仕事を重視する住民に強く効きます。',
+      nursery: '小規模保育と一時預かり。子育て世帯の入居人気を上げます。',
+      deli: '住民向けの惣菜と配食。食事の不安を減らし、売上も生みます。',
+      clinic: '団地内の小さな診療所。高齢世帯の安心感を大きく上げます。',
+      common: '誰でも使える交流室。孤立を防ぎ、複数の世帯に広く効きます。',
+      startup: '住民のアイデアから生まれた企業。団地外からも収益を呼び込みます。',
+    }[type] || '';
+  }
+
+  getResidentComment(resident) {
+    const comments = {
+      work: '近くに仕事場があれば、通勤時間を丸ごと取り返せます。',
+      family: '保育室が同じ棟にあると、本当に助かります。',
+      food: '夕飯を作れない日に、惣菜があるだけで違います。',
+      health: '診療所が近ければ、ここに長く住めそうです。',
+      community: '顔を合わせる場所が、もう少し欲しいですね。',
+    };
+    return comments[resident.need];
+  }
+
+  getFacilityCounts(building) {
+    return building.rooms.reduce((counts, room) => {
+      if (!['vacant', 'occupied'].includes(room.type)) counts[room.type] = (counts[room.type] || 0) + 1;
+      return counts;
+    }, {});
+  }
+
+  getBuildingVacancyRate(building) {
+    return building.rooms.filter((room) => room.type === 'vacant').length / building.rooms.length;
+  }
+
+  getOccupiedCount() {
+    return this.rooms.filter((room) => room.type === 'occupied').length;
+  }
+
+  getVacantCount() {
+    return this.rooms.filter((room) => room.type === 'vacant').length;
   }
 
   getAverageHappiness() {
@@ -802,118 +1075,98 @@ class DanchiScene extends Phaser.Scene {
     return Math.round(this.residents.reduce((sum, resident) => sum + resident.happiness, 0) / this.residents.length);
   }
 
-  getResidentComment(resident) {
-    const lowest = Object.entries(resident.needs).sort((a, b) => a[1] - b[1])[0][0];
-    if (lowest === 'food') return '惣菜の匂いだけで、ご飯が食べられそうです。';
-    if (lowest === 'fun') return '公園にベンチがもう一つ欲しいですね。';
-    return resident.idea >= 22 ? 'この団地、商売になる気がします。' : '仕事場があると助かるんですが。';
+  playAmbientMoment() {
+    if (this.eventOpen || this.speed === 0 || this.residents.length === 0) return;
+    const resident = Phaser.Utils.Array.GetRandom(this.residents);
+    const messages = [
+      `${resident.name}さんが回覧板を次の部屋へ届けました。`,
+      `${resident.name}さんがベランダの布団を慌てて取り込みました。`,
+      `${resident.name}さんが廊下で立ち話を始めました。`,
+      `${resident.name}さんが空き室を少し気にしています。`,
+    ];
+    if (Math.random() < 0.55) this.announce(Phaser.Utils.Array.GetRandom(messages));
   }
 
-  changeAllHappiness(amount) {
-    this.residents.forEach((resident) => {
-      resident.happiness = Phaser.Math.Clamp(resident.happiness + amount, 0, 100);
-      Object.keys(resident.needs).forEach((key) => {
-        resident.needs[key] = Phaser.Math.Clamp(resident.needs[key] + Math.round(amount / 2), 0, 100);
-      });
-    });
+  setSpeed(value) {
+    this.speed = value;
+    this.time.timeScale = value === 0 ? 0.0001 : value;
+    this.children.list
+      .filter((child) => child.type === 'Rectangle' && child.getData('speedValue') !== undefined)
+      .forEach((button) => button.setFillStyle(button.getData('speedValue') === value ? 0xf0cc62 : 0x42566e));
+    this.showToast(value === 0 ? '時間を止めました。部屋割りをゆっくり考えられます。' : `${value}倍速で進めます。`);
   }
 
-  levelRandomFacility(type, xp) {
-    const targets = this.cells.flat().filter((cell) => cell.type === type);
-    if (!targets.length) return;
-    const cell = Phaser.Utils.Array.GetRandom(targets);
-    cell.xp += xp;
-    this.tryLevelFacility(cell);
+  announce(message) {
+    if (!this.newsText) return;
+    this.newsText.setText(message);
+    this.tweens.add({ targets: this.newsText, alpha: { from: 0.25, to: 1 }, duration: 220 });
   }
 
-  showResidentBubble(resident, text) {
-    if (resident.bubble) resident.bubble.destroy();
-    resident.bubble = this.add.text(resident.sprite.x, resident.sprite.y - 20, text, {
-      fontFamily: 'monospace', fontSize: '11px', color: '#26374b', backgroundColor: '#fff4d0',
-      padding: { x: 4, y: 2 },
-    }).setOrigin(0.5).setDepth(80);
+  showToast(message) {
+    if (this.toast) this.toast.destroy();
+    this.toast = this.add.text(454, 548, message, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#fffbea', backgroundColor: '#26374b',
+      padding: { x: 10, y: 6 }, wordWrap: { width: 730 },
+    }).setOrigin(0.5, 1).setDepth(150);
+    this.tweens.add({ targets: this.toast, alpha: 0, delay: 1900, duration: 350, onComplete: () => this.toast?.destroy() });
+  }
+
+  showAchievement(message) {
+    const panel = this.add.container(0, 0).setDepth(190);
+    const box = this.add.rectangle(640, 340, 500, 170, 0xffe8a9).setStrokeStyle(6, 0x88563b);
+    const ribbon = this.add.rectangle(640, 273, 280, 32, 0xd66b53).setStrokeStyle(3, 0x874838);
+    const title = this.add.text(640, 273, '団地再生ニュース', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#fff7dd', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const text = this.add.text(640, 342, message, {
+      fontFamily: 'monospace', fontSize: '18px', color: '#26374b', align: 'center', lineSpacing: 7, fontStyle: 'bold',
+    }).setOrigin(0.5);
+    panel.add([box, ribbon, title, text]);
+    panel.setScale(0.55).setAlpha(0);
     this.tweens.add({
-      targets: resident.bubble, y: resident.bubble.y - 8, alpha: 0, duration: 1000,
-      onComplete: () => { resident.bubble?.destroy(); resident.bubble = null; },
+      targets: panel, scale: 1, alpha: 1, duration: 260, ease: 'Back.Out',
+      onComplete: () => this.time.delayedCall(1700, () => {
+        this.tweens.add({ targets: panel, alpha: 0, duration: 260, onComplete: () => panel.destroy(true) });
+      }),
     });
   }
 
-  floatValue(cell, text) {
-    const label = this.add.text(MAP_X + cell.x * TILE + 16, MAP_Y + cell.y * TILE + 2, text, {
-      fontFamily: 'monospace', fontSize: '12px', color: '#fff4a8', backgroundColor: '#33445a',
-      padding: { x: 4, y: 2 },
-    }).setOrigin(0.5).setDepth(90);
-    this.tweens.add({ targets: label, y: label.y - 20, alpha: 0, duration: 850, onComplete: () => label.destroy() });
-  }
-
-  floatTop(text) {
-    const label = this.add.text(790, 58, text, {
-      fontFamily: 'monospace', fontSize: '17px', color: '#fff0a0', fontStyle: 'bold',
-    }).setDepth(95);
-    this.tweens.add({ targets: label, y: 30, alpha: 0, duration: 950, onComplete: () => label.destroy() });
-  }
-
-  makeSparkles(x, y) {
-    for (let i = 0; i < 7; i += 1) {
-      const dot = this.add.rectangle(x, y, 4, 4, i % 2 ? 0xffec8a : 0xffffff).setDepth(90);
-      const angle = (Math.PI * 2 * i) / 7;
+  makeRoomSparkles(room) {
+    for (let i = 0; i < 8; i += 1) {
+      const dot = this.add.rectangle(room.x, room.y, 4, 4, i % 2 ? 0xffef83 : 0xffffff).setDepth(60);
+      const angle = (Math.PI * 2 * i) / 8;
       this.tweens.add({
         targets: dot,
-        x: x + Math.cos(angle) * Phaser.Math.Between(18, 34),
-        y: y + Math.sin(angle) * Phaser.Math.Between(18, 34),
+        x: room.x + Math.cos(angle) * Phaser.Math.Between(22, 38),
+        y: room.y + Math.sin(angle) * Phaser.Math.Between(18, 30),
         alpha: 0,
-        duration: 520,
+        duration: 540,
         onComplete: () => dot.destroy(),
       });
     }
   }
 
-  bigNews(message) {
-    if (!this.newsText) return;
-    this.newsText.setText(`団地ニュース：${message}`);
-    this.tweens.add({ targets: [this.newsBox, this.newsText], alpha: { from: 0.35, to: 1 }, duration: 240 });
-  }
-
-  showToast(message) {
-    if (this.toast) this.toast.destroy();
-    this.toast = this.add.text(306, 416, message, {
-      fontFamily: 'monospace', fontSize: '14px', color: '#fffbe6', backgroundColor: '#26374b',
-      padding: { x: 10, y: 6 }, wordWrap: { width: 510 },
-    }).setOrigin(0.5).setDepth(120);
-    this.tweens.add({ targets: this.toast, alpha: 0, delay: 1800, duration: 350, onComplete: () => this.toast?.destroy() });
-  }
-
-  showAchievement(message) {
-    const panel = this.add.container(0, 0).setDepth(170);
-    const box = this.add.rectangle(512, 270, 470, 150, 0xffedb3).setStrokeStyle(5, 0x8b5a3c);
-    const text = this.add.text(512, 270, message, {
-      fontFamily: 'monospace', fontSize: '18px', color: '#26374b', align: 'center', lineSpacing: 7, fontStyle: 'bold',
-    }).setOrigin(0.5);
-    panel.add([box, text]);
-    panel.setScale(0.6).setAlpha(0);
-    this.tweens.add({
-      targets: panel, scale: 1, alpha: 1, duration: 260, ease: 'Back.Out',
-      onComplete: () => this.time.delayedCall(1600, () => this.tweens.add({ targets: panel, alpha: 0, duration: 250, onComplete: () => panel.destroy(true) })),
-    });
+  floatHud(text) {
+    const label = this.add.text(1000, 58, text, {
+      fontFamily: 'monospace', fontSize: '16px', color: '#fff0a1', fontStyle: 'bold',
+    }).setDepth(160);
+    this.tweens.add({ targets: label, y: 30, alpha: 0, duration: 950, onComplete: () => label.destroy() });
   }
 
   update(_time, delta) {
     if (this.speed === 0) return;
-    const dt = delta / 1000;
-    this.residents.forEach((resident) => {
-      if (!resident.target) return;
-      const sprite = resident.sprite;
-      const distance = Phaser.Math.Distance.Between(sprite.x, sprite.y, resident.target.x, resident.target.y);
-      if (distance < 3) {
-        resident.target = null;
-        this.arriveResident(resident);
+    const dt = (delta / 1000) * this.speed;
+    this.walkers.forEach((walker) => {
+      const dx = walker.targetX - walker.sprite.x;
+      if (Math.abs(dx) < 3) {
+        walker.targetX = Phaser.Math.Between(45, 865);
+        if (Math.random() < 0.25) walker.laneY = walker.laneY < 400 ? 548 : 302;
         return;
       }
-      const angle = Phaser.Math.Angle.Between(sprite.x, sprite.y, resident.target.x, resident.target.y);
-      sprite.x += Math.cos(angle) * resident.speed * dt;
-      sprite.y += Math.sin(angle) * resident.speed * dt;
-      sprite.flipX = Math.cos(angle) < 0;
-      sprite.setAngle(Math.sin(sprite.x * 0.16) * 2);
+      walker.sprite.x += Math.sign(dx) * walker.speed * dt;
+      walker.sprite.y += (walker.laneY - walker.sprite.y) * Math.min(1, dt * 2.2);
+      walker.sprite.flipX = dx < 0;
+      walker.sprite.setAngle(Math.sin(walker.sprite.x * 0.18) * 2);
     });
   }
 }
@@ -921,9 +1174,9 @@ class DanchiScene extends Phaser.Scene {
 const config = {
   type: Phaser.AUTO,
   parent: 'game',
-  width: 1024,
-  height: 582,
-  backgroundColor: '#6fa85b',
+  width: GAME_WIDTH,
+  height: GAME_HEIGHT,
+  backgroundColor: '#9fcfd0',
   pixelArt: true,
   roundPixels: true,
   antialias: false,
